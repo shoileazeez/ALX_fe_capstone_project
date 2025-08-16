@@ -1,7 +1,9 @@
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import Home from './Pages/Home';
+import SettingsPage from "./Pages/Settings";
+import Market from "./Pages/Market";
+import CoinDetails from "./Pages/CoinDetails";
 // import Dashboard from './Dashboard';
-// import Markets from './Markets';
 // ... other components
 
 function App() {
@@ -10,10 +12,11 @@ function App() {
       <Router>
         <Routes>
           <Route path="/" element={<Home />} />
-          {/* <Route path="/dashboard" element={<Dashboard />} />
-          <Route path="/markets" element={<Markets />} />
-          <Route path="/portfolio" element={<Portfolio />} />
-          <Route path="/settings" element={<Settings />} /> */}
+          {/* <Route path="/dashboard" element={<Dashboard />} />*/}
+          <Route path="/markets" element={<Market />} />
+          <Route path="/coin/:coinId" element={<CoinDetails />} />
+          {/* <Route path="/portfolio" element={<Portfolio />} /> */}
+          <Route path="/settings" element={<SettingsPage />} />
         </Routes>
       </Router>
     </div>
