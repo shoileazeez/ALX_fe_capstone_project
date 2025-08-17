@@ -28,6 +28,11 @@ const PriceChart = ({ coinId }) => {
             );
             
             const prices = response.data.prices;
+            
+            if (!prices || prices.length === 0) {
+                throw new Error('No price data available');
+            }
+            
             const formattedData = prices.map((price, index) => {
                 const date = new Date(price[0]);
                 let label;
@@ -39,10 +44,18 @@ const PriceChart = ({ coinId }) => {
                         minute: '2-digit',
                         hour12: false 
                     });
+                } else if (timeFrame === '7') {
+                    // For 7D, show date format
+                    label = date.toLocaleDateString('en-US', { 
+                        month: 'short', 
+                        day: 'numeric' 
+                    });
                 } else {
-                    // For 7D and 30D, show days
-                    const dayNumber = Math.floor(index / (prices.length / parseInt(timeFrame))) + 1;
-                    label = `Day ${dayNumber}`;
+                    // For 30D, show date format
+                    label = date.toLocaleDateString('en-US', { 
+                        month: 'short', 
+                        day: 'numeric' 
+                    });
                 }
                 
                 return {
@@ -57,18 +70,30 @@ const PriceChart = ({ coinId }) => {
             });
 
             // Sample data points for cleaner chart
-            const sampleSize = timeFrame === '1' ? 24 : parseInt(timeFrame);
-            const sampledData = [];
-            const step = Math.floor(formattedData.length / sampleSize);
-            
-            for (let i = 0; i < formattedData.length; i += step) {
-                sampledData.push(formattedData[i]);
+            let sampledData;
+            if (timeFrame === '1') {
+                // For 24H, sample every 1-2 hours
+                const step = Math.max(1, Math.floor(formattedData.length / 12));
+                sampledData = formattedData.filter((_, index) => index % step === 0);
+            } else if (timeFrame === '7') {
+                // For 7D, sample every few hours
+                const step = Math.max(1, Math.floor(formattedData.length / 24));
+                sampledData = formattedData.filter((_, index) => index % step === 0);
+            } else {
+                // For 30D, sample daily
+                const step = Math.max(1, Math.floor(formattedData.length / 30));
+                sampledData = formattedData.filter((_, index) => index % step === 0);
+            }
+
+            // Ensure we have at least some data points
+            if (sampledData.length === 0) {
+                sampledData = formattedData.slice(0, 10); // Take first 10 points as fallback
             }
 
             setChartData(sampledData);
         } catch (err) {
             console.error('Error fetching chart data:', err);
-            setError('Failed to load chart data');
+            setError(`Failed to load chart data: ${err.message}`);
         } finally {
             setLoading(false);
         }
@@ -158,6 +183,37 @@ const PriceChart = ({ coinId }) => {
     }
 
     // Calculate price range for Y-axis
+    if (chartData.length === 0) {
+        return (
+            <div className="bg-gray-900/40 backdrop-blur-xl rounded-3xl p-8 border border-gray-700/50 shadow-2xl">
+                <div className="flex items-center justify-between mb-6">
+                    <h2 className="text-xl font-bold text-white">Price Chart</h2>
+                    <div className="flex space-x-2">
+                        {timeFrames.map((tf) => (
+                            <button
+                                key={tf.value}
+                                onClick={() => setTimeFrame(tf.value)}
+                                className={`px-4 py-2 rounded-xl text-sm transition-all duration-300 ${
+                                    timeFrame === tf.value
+                                        ? 'bg-blue-600 text-white'
+                                        : 'bg-gray-700/50 text-gray-400 hover:bg-gray-600/50'
+                                }`}
+                            >
+                                {tf.label}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+                <div className="h-80 flex items-center justify-center">
+                    <div className="text-center">
+                        <div className="text-yellow-400 text-lg mb-2">📊 No Data</div>
+                        <p className="text-gray-400">No chart data available for this timeframe</p>
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
     const prices = chartData.map(d => d.price);
     const minPrice = Math.min(...prices);
     const maxPrice = Math.max(...prices);

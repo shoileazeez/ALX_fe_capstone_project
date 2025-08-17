@@ -2,6 +2,8 @@ import React, { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import NavBar from "../components/Navbar";
 import PriceChart from "../components/PriceChart";
+import AddTransactionModal from "../components/AddTransactionModal";
+import { useTransactionModal } from "../context/TransactionModalContext";
 import coinDetails from "../api/CoinDetails";
 
 const CoinDetails = () => {
@@ -10,6 +12,9 @@ const CoinDetails = () => {
     const [error, setError] = useState(null);
     const { coinId } = useParams();
     const navigate = useNavigate();
+    
+    // Transaction modal state
+    const { isModalOpen, openModal, closeModal } = useTransactionModal();
 
     useEffect(() => {
         const fetchCoinDetails = async () => {
@@ -30,6 +35,28 @@ const CoinDetails = () => {
             fetchCoinDetails();
         }
     }, [coinId]);
+
+    const handleAddToPortfolio = () => {
+        openModal();
+    };
+
+    const handleTransactionAdded = (transaction, allTransactions) => {
+        console.log('Transaction added from coin details:', transaction);
+        // You can add any additional logic here, like showing a success message
+    };
+
+    // Create coin object for modal pre-selection
+    const getCoinForTransaction = () => {
+        if (!coin) return null;
+        
+        return {
+            id: coin.id,
+            name: coin.name,
+            symbol: coin.symbol,
+            image: coin.image?.small || coin.image?.thumb,
+            current_price: coin.market_data?.current_price?.usd
+        };
+    };
 
     const formatPrice = (price) => {
         if (price >= 1) {
@@ -135,7 +162,10 @@ const CoinDetails = () => {
                                 </div>
                             </div>
                         </div>
-                        <button className="px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white rounded-xl transition-all duration-300 font-medium hover:scale-105">
+                        <button 
+                            onClick={handleAddToPortfolio}
+                            className="px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white rounded-xl transition-all duration-300 font-medium hover:scale-105"
+                        >
                             Add to Portfolio
                         </button>
                     </div>
@@ -305,6 +335,14 @@ const CoinDetails = () => {
                     </div>
                 )}
             </div>
+
+            {/* Add Transaction Modal */}
+            <AddTransactionModal
+                isOpen={isModalOpen}
+                onClose={closeModal}
+                onTransactionAdded={handleTransactionAdded}
+                preSelectedCoin={getCoinForTransaction()}
+            />
         </div>
     );
 };

@@ -3,6 +3,9 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import NavBar from "../components/Navbar";
 import MiniChart from "../components/MiniChart";
 import MarketTable from "../api/MarketTable";
+import SearchCoins from "../api/SearchCoins";
+import AddTransactionModal from "../components/AddTransactionModal";
+import { useTransactionModal } from "../context/TransactionModalContext";
 
 const Market = () => {
     const [coins, setCoins] = useState([]);
@@ -13,6 +16,11 @@ const Market = () => {
     const [perPage, setPerPage] = useState(50);
     const [currentPage, setCurrentPage] = useState(1);
     const [filteredCoins, setFilteredCoins] = useState([]);
+    const [isSearching, setIsSearching] = useState(false);
+    
+    // Transaction modal state
+    const { isModalOpen, openModal, closeModal } = useTransactionModal();
+    const [selectedCoinForTransaction, setSelectedCoinForTransaction] = useState(null);
     
     const navigate = useNavigate();
     const [searchParams, setSearchParams] = useSearchParams();
@@ -35,60 +43,86 @@ const Market = () => {
         const fetchMarketData = async () => {
             try {
                 setLoading(true);
-                const params = {
-                    vs_currency: 'usd',
-                    order: sortBy,
-                    per_page: perPage,
-                    page: currentPage,
-                    price_change_percentage: '24h,7d',
-                    sparkline: true
-                };
-                
-                const data = await MarketTable(params);
-                setCoins(data);
                 setError(null);
+                
+                console.log('Fetching market data with params:', { searchTerm, sortBy, perPage, currentPage });
+                
+                // If there's a search term, use search API instead
+                if (searchTerm.trim()) {
+                    setIsSearching(true);
+                    console.log('Using search API for:', searchTerm);
+                    const searchResults = await SearchCoins(searchTerm);
+                    console.log('Search results:', searchResults);
+                    setCoins(searchResults || []);
+                    setFilteredCoins(searchResults || []);
+                    setIsSearching(false);
+                } else {
+                    setIsSearching(false);
+                    console.log('Using market API with sort:', sortBy);
+                    const params = {
+                        vs_currency: 'usd',
+                        order: sortBy,
+                        per_page: perPage,
+                        page: currentPage,
+                        price_change_percentage: '24h,7d',
+                        sparkline: true
+                    };
+                    
+                    const data = await MarketTable(params);
+                    console.log('Market data received:', data);
+                    setCoins(data || []);
+                    setFilteredCoins(data || []);
+                }
             } catch (err) {
-                setError('Failed to fetch market data');
-                console.error('Error fetching market data:', err);
+                console.error('Error in fetchMarketData:', err);
+                setError(`Failed to fetch market data: ${err.message}`);
+                setCoins([]);
+                setFilteredCoins([]);
             } finally {
                 setLoading(false);
             }
         };
 
         fetchMarketData();
-    }, [sortBy, perPage, currentPage]);
+    }, [sortBy, perPage, currentPage, searchTerm]);
 
-    // Filter coins based on search term
+    // Handle search with debouncing
     useEffect(() => {
-        if (!searchTerm) {
-            setFilteredCoins(coins);
-        } else {
-            const filtered = coins.filter(coin =>
-                coin.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                coin.symbol.toLowerCase().includes(searchTerm.toLowerCase())
-            );
-            setFilteredCoins(filtered);
-        }
-    }, [coins, searchTerm]);
+        const timeoutId = setTimeout(() => {
+            if (searchTerm.trim()) {
+                // Search is handled in the main useEffect above
+                setCurrentPage(1); // Reset to first page when searching
+            } else {
+                // If search is cleared, refetch original data
+                setCurrentPage(1);
+            }
+        }, 500); // 500ms debounce
+
+        return () => clearTimeout(timeoutId);
+    }, [searchTerm]);
 
     // Update URL params
     const updateURLParams = (newParams) => {
-        const current = Object.fromEntries(searchParams);
-        const updated = { ...current, ...newParams };
-        
-        // Remove empty values
-        Object.keys(updated).forEach(key => {
-            if (!updated[key] || updated[key] === '' || updated[key] === 'market_cap_desc') {
-                delete updated[key];
-            }
-        });
-        
-        setSearchParams(updated);
+        try {
+            const current = Object.fromEntries(searchParams);
+            const updated = { ...current, ...newParams };
+            
+            // Remove empty values
+            Object.keys(updated).forEach(key => {
+                if (!updated[key] || updated[key] === '' || (key === 'sort' && updated[key] === 'market_cap_desc')) {
+                    delete updated[key];
+                }
+            });
+            
+            setSearchParams(updated);
+        } catch (error) {
+            console.error('Error updating URL params:', error);
+        }
     };
 
     const handleSearch = (value) => {
         setSearchTerm(value);
-        updateURLParams({ search: value });
+        updateURLParams({ search: value, page: 1 });
     };
 
     const handleSortChange = (value) => {
@@ -105,6 +139,18 @@ const Market = () => {
 
     const handleCoinClick = (coinId) => {
         navigate(`/coin/${coinId}`);
+    };
+
+    const handleAddToPortfolio = (coin, e) => {
+        e.stopPropagation();
+        setSelectedCoinForTransaction(coin);
+        openModal();
+    };
+
+    const handleTransactionAdded = (transaction, allTransactions) => {
+        console.log('Transaction added:', transaction);
+        // You can add any additional logic here, like showing a success message
+        // or refreshing portfolio data if needed
     };
 
     const formatPrice = (price) => {
@@ -137,14 +183,16 @@ const Market = () => {
         );
     };
 
-    if (loading) {
+    if (loading || isSearching) {
         return (
             <div className="min-h-screen bg-gradient-to-br from-gray-900 via-black to-gray-900">
                 <NavBar />
                 <div className="pt-24 flex items-center justify-center min-h-[60vh]">
                     <div className="text-center">
                         <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-500 mx-auto mb-4"></div>
-                        <p className="text-gray-400 text-lg">Loading market data...</p>
+                        <p className="text-gray-400 text-lg">
+                            {isSearching ? 'Searching...' : 'Loading market data...'}
+                        </p>
                     </div>
                 </div>
             </div>
@@ -219,8 +267,10 @@ const Market = () => {
                                 onChange={(e) => handleSortChange(e.target.value)}
                                 className="w-full bg-gray-800/70 backdrop-blur-sm border border-gray-600/50 text-white rounded-2xl px-4 py-4 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 appearance-none transition-all duration-300"
                             >
-                                <option value="market_cap_desc">Market Cap Rank</option>
+                                <option value="market_cap_desc">Market Cap (High to Low)</option>
+                                <option value="market_cap_asc">Market Cap (Low to High)</option>
                                 <option value="volume_desc">Volume (High to Low)</option>
+                                <option value="volume_asc">Volume (Low to High)</option>
                                 <option value="price_change_percentage_24h_desc">24h Change (High to Low)</option>
                                 <option value="price_change_percentage_24h_asc">24h Change (Low to High)</option>
                                 <option value="id_asc">Name (A-Z)</option>
@@ -247,8 +297,12 @@ const Market = () => {
                 {/* Market Table */}
                 <div className="bg-gray-900/40 backdrop-blur-xl rounded-3xl border border-gray-700/50 shadow-2xl overflow-hidden">
                     <div className="p-6 border-b border-gray-700/50">
-                        <h2 className="text-xl font-bold text-white mb-2">Top Cryptocurrencies</h2>
-                        <p className="text-gray-400 text-sm">Showing {filteredCoins.length} of {coins.length} cryptocurrencies</p>
+                        <h2 className="text-xl font-bold text-white mb-2">
+                            {searchTerm ? `Search Results for "${searchTerm}"` : 'Top Cryptocurrencies'}
+                        </h2>
+                        <p className="text-gray-400 text-sm">
+                            Showing {filteredCoins.length} {searchTerm ? 'search results' : 'cryptocurrencies'}
+                        </p>
                     </div>
 
                     <div className="overflow-x-auto">
@@ -266,104 +320,127 @@ const Market = () => {
                                 </tr>
                             </thead>
                             <tbody>
-                                {filteredCoins.map((coin, index) => (
-                                    <tr 
-                                        key={coin.id}
-                                        onClick={() => handleCoinClick(coin.id)}
-                                        className="border-b border-gray-800/50 hover:bg-gray-800/30 transition-all duration-300 cursor-pointer group"
-                                    >
-                                        <td className="py-4 px-6 text-gray-300">{coin.market_cap_rank}</td>
-                                        <td className="py-4 px-6">
-                                            <div className="flex items-center space-x-3">
-                                                <img 
-                                                    src={coin.image} 
-                                                    alt={coin.name}
-                                                    className="w-8 h-8 rounded-full"
-                                                />
-                                                <div>
-                                                    <div className="text-white font-medium group-hover:text-blue-400 transition-colors">
-                                                        {coin.name}
-                                                    </div>
-                                                    <div className="text-gray-400 text-sm uppercase">
-                                                        {coin.symbol}
+                                {filteredCoins && filteredCoins.length > 0 ? filteredCoins.map((coin, index) => {
+                                    // Safety check for coin data
+                                    if (!coin || !coin.id) {
+                                        console.warn('Invalid coin data at index', index, coin);
+                                        return null;
+                                    }
+                                    
+                                    return (
+                                        <tr 
+                                            key={coin.id}
+                                            onClick={() => handleCoinClick(coin.id)}
+                                            className="border-b border-gray-800/50 hover:bg-gray-800/30 transition-all duration-300 cursor-pointer group"
+                                        >
+                                            <td className="py-4 px-6 text-gray-300">
+                                                {coin.market_cap_rank || 'N/A'}
+                                            </td>
+                                            <td className="py-4 px-6">
+                                                <div className="flex items-center space-x-3">
+                                                    <img 
+                                                        src={coin.image || '/placeholder.png'} 
+                                                        alt={coin.name || 'Coin'}
+                                                        className="w-8 h-8 rounded-full"
+                                                        onError={(e) => {
+                                                            e.target.src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="gray"><circle cx="12" cy="12" r="10"/></svg>';
+                                                        }}
+                                                    />
+                                                    <div>
+                                                        <div className="text-white font-medium group-hover:text-blue-400 transition-colors">
+                                                            {coin.name || 'Unknown'}
+                                                        </div>
+                                                        <div className="text-gray-400 text-sm uppercase">
+                                                            {coin.symbol || 'N/A'}
+                                                        </div>
                                                     </div>
                                                 </div>
-                                            </div>
-                                        </td>
-                                        <td className="py-4 px-6 text-right text-white font-medium">
-                                            {formatPrice(coin.current_price)}
-                                        </td>
-                                        <td className="py-4 px-6 text-right">
-                                            {formatPercentage(coin.price_change_percentage_24h)}
-                                        </td>
-                                        <td className="py-4 px-6 text-right">
-                                            {formatPercentage(coin.price_change_percentage_7d_in_currency)}
-                                        </td>
-                                        <td className="py-4 px-6 text-right text-gray-300">
-                                            {formatMarketCap(coin.market_cap)}
-                                        </td>
-                                        <td className="py-4 px-6 text-center">
-                                            <div className="flex justify-center">
-                                                <MiniChart 
-                                                    sparklineData={coin.sparkline_in_7d?.price || []}
-                                                    priceChange={coin.price_change_percentage_7d_in_currency || 0}
-                                                />
-                                            </div>
-                                        </td>
-                                        <td className="py-4 px-6 text-center">
-                                            <button 
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    // Add to portfolio functionality
-                                                    console.log(`Adding ${coin.name} to portfolio`);
-                                                }}
-                                                className="px-4 py-2 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white rounded-xl transition-all duration-300 text-sm font-medium hover:scale-105"
-                                            >
-                                                + Add
-                                            </button>
-                                        </td>
-                                    </tr>
-                                ))}
+                                            </td>
+                                            <td className="py-4 px-6 text-right text-white font-medium">
+                                                {coin.current_price ? formatPrice(coin.current_price) : 'N/A'}
+                                            </td>
+                                            <td className="py-4 px-6 text-right">
+                                                {formatPercentage(coin.price_change_percentage_24h)}
+                                            </td>
+                                            <td className="py-4 px-6 text-right">
+                                                {formatPercentage(coin.price_change_percentage_7d_in_currency)}
+                                            </td>
+                                            <td className="py-4 px-6 text-right text-gray-300">
+                                                {coin.market_cap ? formatMarketCap(coin.market_cap) : 'N/A'}
+                                            </td>
+                                            <td className="py-4 px-6 text-center">
+                                                <div className="flex justify-center">
+                                                    <MiniChart 
+                                                        sparklineData={coin.sparkline_in_7d?.price || []}
+                                                        priceChange={coin.price_change_percentage_7d_in_currency || 0}
+                                                    />
+                                                </div>
+                                            </td>
+                                            <td className="py-4 px-6 text-center">
+                                                <button 
+                                                    onClick={(e) => handleAddToPortfolio(coin, e)}
+                                                    className="px-4 py-2 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white rounded-xl transition-all duration-300 text-sm font-medium hover:scale-105"
+                                                >
+                                                    + Add
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    );
+                                }) : null}
                             </tbody>
                         </table>
                     </div>
 
-                    {filteredCoins.length === 0 && (
+                    {filteredCoins.length === 0 && !loading && !isSearching && (
                         <div className="p-12 text-center">
-                            <div className="text-gray-400 text-lg mb-4">No cryptocurrencies found</div>
-                            <p className="text-gray-500">Try adjusting your search or filters</p>
+                            <div className="text-gray-400 text-lg mb-4">
+                                {searchTerm ? 'No cryptocurrencies found' : 'No data available'}
+                            </div>
+                            <p className="text-gray-500">
+                                {searchTerm ? `No results found for "${searchTerm}". Try a different search term.` : 'Try refreshing the page or adjusting your filters'}
+                            </p>
                         </div>
                     )}
                 </div>
 
-                {/* Pagination */}
-                <div className="mt-8 flex justify-center space-x-4">
-                    <button
-                        onClick={() => {
-                            const newPage = Math.max(1, currentPage - 1);
-                            setCurrentPage(newPage);
-                            updateURLParams({ page: newPage });
-                        }}
-                        disabled={currentPage === 1}
-                        className="px-6 py-3 bg-gray-800/70 hover:bg-gray-700/70 text-white rounded-xl transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                        Previous
-                    </button>
-                    <span className="px-6 py-3 bg-gray-900/70 text-white rounded-xl">
-                        Page {currentPage}
-                    </span>
-                    <button
-                        onClick={() => {
-                            const newPage = currentPage + 1;
-                            setCurrentPage(newPage);
-                            updateURLParams({ page: newPage });
-                        }}
-                        className="px-6 py-3 bg-gray-800/70 hover:bg-gray-700/70 text-white rounded-xl transition-all duration-300"
-                    >
-                        Next
-                    </button>
-                </div>
+                {/* Pagination - only show when not searching */}
+                {!searchTerm && (
+                    <div className="mt-8 flex justify-center space-x-4">
+                        <button
+                            onClick={() => {
+                                const newPage = Math.max(1, currentPage - 1);
+                                setCurrentPage(newPage);
+                                updateURLParams({ page: newPage });
+                            }}
+                            disabled={currentPage === 1}
+                            className="px-6 py-3 bg-gray-800/70 hover:bg-gray-700/70 text-white rounded-xl transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                            Previous
+                        </button>
+                        <span className="px-6 py-3 bg-gray-900/70 text-white rounded-xl">
+                            Page {currentPage}
+                        </span>
+                        <button
+                            onClick={() => {
+                                const newPage = currentPage + 1;
+                                setCurrentPage(newPage);
+                                updateURLParams({ page: newPage });
+                            }}
+                            className="px-6 py-3 bg-gray-800/70 hover:bg-gray-700/70 text-white rounded-xl transition-all duration-300"
+                        >
+                            Next
+                        </button>
+                    </div>
+                )}
             </div>
+
+            {/* Add Transaction Modal */}
+            <AddTransactionModal
+                isOpen={isModalOpen}
+                onClose={closeModal}
+                onTransactionAdded={handleTransactionAdded}
+                preSelectedCoin={selectedCoinForTransaction}
+            />
         </div>
     );
 };

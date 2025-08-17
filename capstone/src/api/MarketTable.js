@@ -13,13 +13,24 @@ const MarketTable = async (params={}) => {
 
         // Merge user params with defaults
         const finalParams = { ...defaultParams, ...params };
-        const response  = await axios.get("https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd",{
-            params: finalParams
+        
+        console.log("Making API request with params:", finalParams);
+        
+        // Use axios params to handle URL encoding properly
+        const response = await axios.get("https://api.coingecko.com/api/v3/coins/markets", {
+            params: finalParams,
+            timeout: 10000, // 10 second timeout
         });
-        return response.data;
+        
+        console.log("API response received, data length:", response.data?.length);
+        return response.data || [];
     }
     catch (error) {
-        console.log("Error fetching data", error);
+        console.error("Error fetching market data:", error);
+        if (error.response) {
+            console.error("Response data:", error.response.data);
+            console.error("Response status:", error.response.status);
+        }
         throw error;
     }
 }

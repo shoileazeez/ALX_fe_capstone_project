@@ -23,9 +23,9 @@ body {
   min-height: 100vh;
 }
 
-/* Override any white backgrounds - except CTA component */
+/* Override any white backgrounds - except CTA component and Add Transaction Modal */
 section:not(.cta-section),
-div:not(.cta-container) {
+div:not(.cta-container):not(.add-transaction-modal):not(.add-transaction-backdrop):not(.add-transaction-content) {
   background-color: inherit;
 }
 
@@ -51,4 +51,32 @@ div:not(.cta-container) {
 * {
   scrollbar-width: thin;
   scrollbar-color: #4a4a4a #1a1a1a;
+}
+
+/* Add Transaction Modal specific styles */
+.add-transaction-modal {
+  background-color: rgba(17, 24, 39, 0.95) !important;
+}
+
+.add-transaction-backdrop {
+  background-color: rgba(0, 0, 0, 0.3) !important;
+  backdrop-filter: blur(2px) !important;
+}
+
+.add-transaction-content * {
+  color: inherit;
+}
+
+/* Ensure modal inputs and selects maintain dark theme */
+.add-transaction-modal input,
+.add-transaction-modal select,
+.add-transaction-modal textarea {
+  background-color: rgba(31, 41, 55, 0.7) !important;
+  border-color: rgba(75, 85, 99, 0.5) !important;
+  color: white !important;
+}
+
+.add-transaction-modal input::placeholder,
+.add-transaction-modal textarea::placeholder {
+  color: rgba(156, 163, 175, 0.8) !important;
 }

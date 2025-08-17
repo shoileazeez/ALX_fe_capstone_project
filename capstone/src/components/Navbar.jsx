@@ -1,10 +1,12 @@
 
 import { Link } from 'react-router-dom';
 import { useState, useEffect } from 'react';
+import { useTransactionModal } from '../context/TransactionModalContext';
 
 const NavBar = () => {
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const [scrolled, setScrolled] = useState(false);
+    const { openModal } = useTransactionModal();
 
     useEffect(() => {
         const handleScroll = () => {
@@ -90,7 +92,10 @@ const NavBar = () => {
                     </nav>
 
                     {/* Desktop Add Transaction Button */}
-                    <button className="hidden md:flex bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white px-6 py-2.5 rounded-xl items-center space-x-2 transition-all duration-300 shadow-lg hover:shadow-blue-500/25 hover:scale-105">
+                    <button 
+                        onClick={openModal}
+                        className="hidden md:flex bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white px-6 py-2.5 rounded-xl items-center space-x-2 transition-all duration-300 shadow-lg hover:shadow-blue-500/25 hover:scale-105"
+                    >
                         <span className="text-lg font-bold">+</span>
                         <span className="font-medium">Add Transaction</span>
                     </button>
@@ -158,7 +163,10 @@ const NavBar = () => {
                         <div className="pt-2">
                             <button 
                                 className="w-full text-left px-4 py-3 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white rounded-xl transition-all duration-300 font-medium shadow-lg"
-                                onClick={() => setIsMenuOpen(false)}
+                                onClick={() => {
+                                    setIsMenuOpen(false);
+                                    openModal();
+                                }}
                             >
                                 ➕ Add Transaction
                             </button>

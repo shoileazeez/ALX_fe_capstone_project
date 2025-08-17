@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import NavBar from "../components/Navbar";
+import { useTransactionModal } from "../context/TransactionModalContext";
 import { Link } from "react-router-dom"
 
 const SettingsPage = () => {
@@ -8,16 +9,44 @@ const SettingsPage = () => {
     const [refreshInterval, setRefreshInterval] = useState(60);
     const [transactionCount, setTransactionCount] = useState(0);
     const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+    const [transactions, setTransactions] = useState([]);
+    const { openModal } = useTransactionModal();
 
     useEffect(() => {
-        // Load settings from localStorage (but don't use it in artifacts environment)
-        const savedTransactions = [];
-        setTransactionCount(savedTransactions.length);
+        // Load settings and transactions from localStorage
+        loadTransactionsAndSettings();
+        
+        // Listen for global transaction added events
+        const handleTransactionAdded = (event) => {
+            const { updatedTransactions } = event.detail;
+            setTransactions(updatedTransactions);
+            setTransactionCount(updatedTransactions.length);
+        };
+        
+        window.addEventListener('transactionAdded', handleTransactionAdded);
+        
+        return () => {
+            window.removeEventListener('transactionAdded', handleTransactionAdded);
+        };
     }, []);
 
+    const loadTransactionsAndSettings = () => {
+        const savedTransactions = JSON.parse(localStorage.getItem('cryptoTracker_transactions') || '[]');
+        const savedTheme = localStorage.getItem('cryptoTracker_theme') || 'system';
+        const savedCurrency = localStorage.getItem('cryptoTracker_currency') || 'usd';
+        const savedRefreshInterval = parseInt(localStorage.getItem('cryptoTracker_refreshInterval')) || 60;
+        
+        setTransactions(savedTransactions);
+        setTransactionCount(savedTransactions.length);
+        setTheme(savedTheme);
+        setCurrency(savedCurrency);
+        setRefreshInterval(savedRefreshInterval);
+    };
+
     const saveSettings = (key, value) => {
-        // In real app: localStorage.setItem(`cryptoTracker_${key}`, value);
-        console.log(`Saving ${key}: ${value}`);
+        // Save to localStorage
+        localStorage.setItem(`cryptoTracker_${key}`, value);
+        console.log(`Saved ${key}: ${value}`);
     };
 
     const handleThemeChange = (newTheme) => {
@@ -38,12 +67,12 @@ const SettingsPage = () => {
     const handleExportData = () => {
         try {
             const exportData = {
-                transactions: [],
+                transactions: transactions,
                 settings: { theme, currency, refreshInterval },
                 metadata: {
                     version: '1.0.0',
                     exportedAt: new Date().toISOString(),
-                    totalTransactions: 0
+                    totalTransactions: transactions.length
                 }
             };
 
@@ -68,8 +97,20 @@ const SettingsPage = () => {
 
     const handleClearData = () => {
         try {
+            // Clear all localStorage data
+            localStorage.removeItem('cryptoTracker_transactions');
+            localStorage.removeItem('cryptoTracker_theme');
+            localStorage.removeItem('cryptoTracker_currency');
+            localStorage.removeItem('cryptoTracker_refreshInterval');
+            
+            // Reset state
+            setTransactions([]);
             setTransactionCount(0);
+            setTheme('system');
+            setCurrency('usd');
+            setRefreshInterval(60);
             setShowConfirmDialog(false);
+            
             alert('All data cleared successfully!');
         } catch (error) {
             console.error('Clear data failed:', error);
@@ -256,16 +297,60 @@ const SettingsPage = () => {
                                     <h3 className="text-white font-semibold text-base">Portfolio Transactions</h3>
                                     <p className="text-sm text-gray-400">{transactionCount} transactions stored locally</p>
                                 </div>
-                                <button 
-                                    onClick={handleExportData}
-                                    className="flex items-center px-6 py-3 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white rounded-xl transition-all duration-300 shadow-lg hover:shadow-blue-500/25 hover:scale-105 text-sm font-medium"
-                                >
-                                    <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                                    </svg>
-                                    Export Data
-                                </button>
+                                <div className="flex gap-3">
+                                    <button 
+                                        onClick={openModal}
+                                        className="flex items-center px-4 py-2 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white rounded-xl transition-all duration-300 shadow-lg hover:shadow-green-500/25 hover:scale-105 text-sm font-medium"
+                                    >
+                                        <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                                        </svg>
+                                        Add Transaction
+                                    </button>
+                                    <button 
+                                        onClick={handleExportData}
+                                        className="flex items-center px-4 py-2 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white rounded-xl transition-all duration-300 shadow-lg hover:shadow-blue-500/25 hover:scale-105 text-sm font-medium"
+                                    >
+                                        <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                        </svg>
+                                        Export Data
+                                    </button>
+                                </div>
                             </div>
+
+                            {/* Recent Transactions Preview */}
+                            {transactions.length > 0 && (
+                                <div className="bg-gray-800/30 backdrop-blur-sm rounded-2xl p-6 border border-gray-700/50">
+                                    <h4 className="text-white font-semibold mb-4 flex items-center">
+                                        <svg className="w-5 h-5 mr-2 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                                        </svg>
+                                        Recent Transactions
+                                    </h4>
+                                    <div className="space-y-3 max-h-48 overflow-y-auto">
+                                        {transactions.slice(-5).reverse().map((transaction) => (
+                                            <div key={transaction.id} className="flex items-center justify-between py-3 px-4 bg-gray-700/30 rounded-xl">
+                                                <div className="flex items-center space-x-3">
+                                                    {transaction.coinImage && (
+                                                        <img src={transaction.coinImage} alt={transaction.coinName} className="w-8 h-8 rounded-full" />
+                                                    )}
+                                                    <div>
+                                                        <div className="text-white font-medium text-sm">{transaction.coinName}</div>
+                                                        <div className="text-gray-400 text-xs">{transaction.quantity} {transaction.coinSymbol}</div>
+                                                    </div>
+                                                </div>
+                                                <div className="text-right">
+                                                    <div className="text-white font-medium text-sm">
+                                                        ${transaction.totalValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                                    </div>
+                                                    <div className="text-gray-400 text-xs">{new Date(transaction.date).toLocaleDateString()}</div>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
 
                             <div className="border-t border-gray-700/50 pt-6">
                                 <div className="bg-gradient-to-r from-red-900/30 via-red-800/20 to-pink-900/30 border border-red-600/50 rounded-2xl p-6">
