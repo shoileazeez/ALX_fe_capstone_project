@@ -1,5 +1,6 @@
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import Home from './Pages/Home';
+import Dashboard from './Pages/Dashboard';
 import SettingsPage from "./Pages/Settings";
 import Market from "./Pages/Market";
 import CoinDetails from "./Pages/CoinDetails";
@@ -7,7 +8,6 @@ import Portfolio from "./Pages/Portfolio";
 import ErrorBoundary from "./components/ErrorBoundary";
 import AddTransactionModal from "./components/AddTransactionModal";
 import { TransactionModalProvider, useTransactionModal } from "./context/TransactionModalContext";
-// import Dashboard from './Dashboard';
 // ... other components
 
 const AppContent = () => {
@@ -26,7 +26,7 @@ const AppContent = () => {
         <ErrorBoundary>
           <Routes>
             <Route path="/" element={<Home />} />
-            {/* <Route path="/dashboard" element={<Dashboard />} />*/}
+            <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/markets" element={<Market />} />
             <Route path="/coin/:coinId" element={<CoinDetails />} />
             <Route path="/portfolio" element={<Portfolio />} />

@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import NavBar from "../components/Navbar";
+import PortfolioChart from "../components/PortfolioChart";
+import PerformanceChart from "../components/PerformanceChart";
 import { useTransactionModal } from "../context/TransactionModalContext";
 
 const Portfolio = () => {
@@ -36,17 +38,34 @@ const Portfolio = () => {
     const loadTransactions = () => {
         try {
             const savedTransactions = JSON.parse(localStorage.getItem('cryptoTracker_transactions') || '[]');
-            setTransactions(savedTransactions);
-            calculatePortfolioSummary(savedTransactions);
+            
+            // Validate and clean transaction data
+            const validTransactions = savedTransactions.filter(tx => {
+                return tx && typeof tx === 'object' && tx.id;
+            }).map(tx => ({
+                ...tx,
+                coinId: tx.coinId || 'unknown',
+                coinName: tx.coinName || 'Unknown Coin',
+                coinSymbol: tx.coinSymbol || 'UNKNOWN',
+                coinImage: tx.coinImage || '',
+                quantity: parseFloat(tx.quantity) || 0,
+                totalValue: parseFloat(tx.totalValue) || 0,
+                date: tx.date || new Date().toISOString().split('T')[0]
+            }));
+            
+            setTransactions(validTransactions);
+            calculatePortfolioSummary(validTransactions);
         } catch (error) {
             console.error('Error loading transactions:', error);
+            setTransactions([]);
+            calculatePortfolioSummary([]);
         } finally {
             setLoading(false);
         }
     };
 
     const calculatePortfolioSummary = (transactions) => {
-        const totalInvestment = transactions.reduce((sum, tx) => sum + tx.totalValue, 0);
+        const totalInvestment = transactions.reduce((sum, tx) => sum + (tx?.totalValue || 0), 0);
         // For now, we'll show the investment value as current value
         // In a real app, you'd fetch current prices and calculate actual portfolio value
         const totalValue = totalInvestment;
@@ -205,6 +224,27 @@ const Portfolio = () => {
                                 <div className="text-2xl font-bold">
                                     {formatPercentage(portfolioSummary.totalProfitLossPercentage)}
                                 </div>
+                            </div>
+                        </div>
+
+                        {/* Portfolio Visualization Charts */}
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+                            {/* Portfolio Allocation Chart */}
+                            <div className="bg-gray-900/40 backdrop-blur-xl rounded-3xl border border-gray-700/50 shadow-2xl p-6">
+                                <div className="mb-6">
+                                    <h2 className="text-xl font-bold text-white mb-2">Asset Allocation</h2>
+                                    <p className="text-gray-400 text-sm">Breakdown of your cryptocurrency holdings</p>
+                                </div>
+                                <PortfolioChart transactions={transactions} />
+                            </div>
+
+                            {/* Performance Chart */}
+                            <div className="bg-gray-900/40 backdrop-blur-xl rounded-3xl border border-gray-700/50 shadow-2xl p-6">
+                                <div className="mb-6">
+                                    <h2 className="text-xl font-bold text-white mb-2">Investment Timeline</h2>
+                                    <p className="text-gray-400 text-sm">Your portfolio growth over time</p>
+                                </div>
+                                <PerformanceChart transactions={transactions} />
                             </div>
                         </div>
 
